@@ -1,37 +1,35 @@
 name: Deploy Node.js Service to Linux Server
 
-# El workflow se ejecutará en cada push a la rama 'main'
 on:
   push:
     branches:
       - main
 
-# Define las variables de entorno para el workflow
 env:
-  DOCKER_REPO: lauchacabj12/node-js-service # ¡Importante! Reemplaza esto con tu repositorio de Docker Hub
+  DOCKER_REPO: lauchacabj12/node-js-service 
   IMAGE_TAG: latest
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest # El sistema operativo del runner de GitHub Actions
-
+    runs-on: ubuntu-latest 
+   
     steps:
       - name: Checkout code
-        # Clona tu repositorio para que el runner tenga acceso a tu código y Dockerfile
+
         uses: actions/checkout@v4
 
       - name: Log in to Docker Hub
-        # Se autentica en Docker Hub usando los secretos de GitHub para poder subir la imagen
+        
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
-
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
+   
       - name: Build and push Docker image
-        # Construye la imagen y la sube a Docker Hub con la etiqueta 'latest'
+
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -41,26 +39,26 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy to Linux Server via SSH
-        # Se conecta a tu servidor Linux y ejecuta los comandos de despliegue
+       # This step connects to the remote server via SSH and performs the deployment steps
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 8443 # Usa el puerto 8443 para la conexión SSH
+          port: 8443 
           script: |
             CONTAINER_NAME="node-js-service"
-            # 1. Iniciar sesión en Docker Hub desde el servidor
+            # 1. Log in to Docker Hub from the server
             echo "${{ secrets.DOCKER_TOKEN }}" | docker login --username "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            # 2. Pull de la última imagen del repositorio
+            # 2. Pull the latest image from the repository
             docker pull ${{ env.DOCKER_REPO }}:${{ env.IMAGE_TAG }}
 
-            # 3. Detener y eliminar el contenedor antiguo
+            # 3. Stop and remove the old container
             docker stop $CONTAINER_NAME || true
             docker rm $CONTAINER_NAME || true
 
-            # 4. Ejecutar el nuevo contenedor, mapeando el puerto de la aplicación
+            # 4. Run the new container, mapping the application port
             docker run -d \
               --name $CONTAINER_NAME \
               -p 3001:3001 \
@@ -69,15 +67,14 @@ jobs:
               -e BASIC_SECRET_MESSAGE="${{ secrets.BASIC_SECRET_MESSAGE }}" \
               ${{ env.DOCKER_REPO }}:${{ env.IMAGE_TAG }}
 
-            # Esperar 5 segundos y verificar el estado
             sleep 5
             CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' $CONTAINER_NAME)
 
             if [ "$CONTAINER_STATUS" != "running" ]; then
-              echo "::error::El contenedor se detuvo inmediatamente."
-              echo "Aquí están los logs del contenedor:"
+              echo "::error::The container stopped immediately."
+              echo "Logs:"
               docker logs $CONTAINER_NAME
               exit 1
             fi
 
-            echo "Despliegue completado. El contenedor está corriendo."
+            echo "Success: The container is running."

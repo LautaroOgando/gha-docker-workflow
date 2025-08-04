@@ -10,11 +10,11 @@ const VALID_PASSWORD = process.env.BASIC_AUTH_PASSWORD;
 const SECRET_MESSAGE = process.env.BASIC_SECRET_MESSAGE;
 
 const basicAuth = (req, res, next) => {
-    // 1. Obtener la cabecera Authorization
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-        // Si no hay cabecera de autenticación, enviar un desafío 401
+
         res.set('WWW-Authenticate', 'Basic realm="Área Protegida"');
         return res.status(401).send('Access denied. No credentials provided.');
     }
